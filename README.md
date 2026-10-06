@@ -4,6 +4,8 @@
 
 Marginly is a responsive editorial blog platform for discovering, reading, writing, and managing stories. Its interface pairs a bold editorial journal with a focused writing workspace. The visual direction follows the supplied references: warm cream, forest green, vivid orange, lime accents, generous typography, and Instrument Serif italics.
 
+![Marginly desktop preview](docs/desktop-preview.jpg)
+
 ## Features
 
 - Explore original sample articles with author, date, category, excerpt, and reading time.
@@ -109,6 +111,14 @@ Production identity comes from trusted Sites dispatch headers. A standalone depl
 
 ## Scope and limitations
 
-This is a complete small-platform implementation, not a production social network. There are no uploads, password accounts, moderation tools, pagination, or real-time updates. Cover images use external HTTPS links. New comment requests are not idempotent. The initial deployment is private and requires the owner's access; sharing can be changed in Sites when ready. Private deployment access applies in addition to app-level ownership.
+This is a complete small-platform implementation, not a production social network. There are no uploads, password accounts, moderation tools, pagination, or real-time updates. Cover images use external HTTPS links. New comment requests are not idempotent. Sites deployments are private by default; sharing can be changed in Sites after publication. Private deployment access applies in addition to app-level ownership.
 
 Source and deployment links are recorded in the submission handoff. No credentials or local database contents are committed.
+
+## Verification and deployment status
+
+The final production build, TypeScript checks, all five validation tests, and the local API integration suite passed. Browser checks covered writing a draft, publishing, bookmarks, search, empty results, desktop layout, and mobile layout without horizontal overflow. The structured search tool was also checked with valid and invalid input.
+
+The GitHub source is available at [Umxr357/marginly](https://github.com/Umxr357/marginly). The repository is private by default. A production URL has **not** been issued: the Sites Git source server failed secure connections from the development machine. The complete Worker build succeeds locally; publication can be retried when the hosting connection is restored. No TLS verification was disabled.
+
+See the [mobile preview](docs/mobile-preview.jpg) for the responsive layout. Neither screenshots nor tests imply a successful hosted deployment.
