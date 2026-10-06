@@ -36,7 +36,7 @@ Marginly is a responsive blog platform for exploring, reading, writing, and mana
 
 ## Setup
 
-Requires Node.js **22.13+ or 24.x**, npm, and Git. Render uses Node 24.14.0. The GitHub repository is private, so cloning requires access.
+Requires Node.js **22.13+ or 24.x**, npm, and Git. Render uses Node 24.14.0. The GitHub repository is public and can be cloned without authentication.
 
 ```sh
 git clone https://github.com/Umxr357/marginly.git
