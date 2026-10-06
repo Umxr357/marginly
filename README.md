@@ -4,7 +4,7 @@
 
 Marginly is a responsive blog platform for exploring, reading, writing, and managing stories. Its editorial design pairs warm cream and forest green with orange, lime accents, oversized typography, and serif italics.
 
-**Repository:** [Umxr357/marginly](https://github.com/Umxr357/marginly) · **Hosting:** Render (live deployment verification in progress).
+**Repository:** [Umxr357/marginly](https://github.com/Umxr357/marginly) · **Live website:** [marginly.onrender.com](https://marginly.onrender.com) · **Hosting:** Render.
 
 ![Marginly desktop preview](docs/desktop-preview.jpg)
 
@@ -145,6 +145,6 @@ Public queries include published posts and only the signed-in author's own draft
 
 This is a functional small blog platform. Email verification, password reset, uploads, moderation, pagination, and real-time collaboration are outside its current scope. A public launch beyond the demo should add recovery and abuse-management workflows. New comment requests are not idempotent.
 
-The production build, TypeScript, ESLint, eight unit tests, and the local API integration suite pass. Desktop/mobile visual checks were performed for the editorial interface; see the [mobile preview](docs/mobile-preview.jpg). Live deployment verification is in progress and will be recorded here once completed.
+The production build, TypeScript, ESLint, eight unit tests, and the local API integration suite pass. Desktop/mobile visual checks were performed for the editorial interface; see the [mobile preview](docs/mobile-preview.jpg). The production deployment was verified on October 7, 2026: Render reports Live, the database health check passes, all six seeded stories and individual articles load, missing content returns 404, and invalid/cross-origin submissions are rejected. Browser checks confirmed live search, empty results, mobile layout without horizontal overflow, and the writing/sign-in entry flow.
 
 No credentials, session tokens, or local database contents are committed.
