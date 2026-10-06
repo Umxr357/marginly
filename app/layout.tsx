@@ -6,9 +6,6 @@ export const metadata: Metadata = {
   title: "Marginly — Thoughts worth keeping",
   description:
     "Explore fresh perspectives. Read, save, and publish stories on Marginly.",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: marginly
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: marginly-db
+          property: connectionString
+
+databases:
+  - name: marginly-db
+    plan: free
+    region: singapore
+    databaseName: marginly
+    user: marginly
+    ipAllowList: []

@@ -4,14 +4,21 @@ if (!["127.0.0.1", "localhost"].includes(new URL(base).hostname))
   throw new Error(
     "Integration tests only run against a local development server.",
   );
-const login = await fetch(`${base}/signin-with-chatgpt?return_to=/`, {
-  redirect: "manual",
+const email = `integration-${Date.now()}@marginly.test`;
+const password = "Local test password 12345";
+const registration = await fetch(base + "/api/auth/register", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "Integration Writer", email, password }),
 });
-const cookie = login.headers
+assert.equal(registration.status, 201, await registration.text());
+let cookie = registration.headers
   .getSetCookie()
   .map((value) => value.split(";")[0])
   .join("; ");
-assert.ok(cookie, "Local sign-in must supply a development session cookie");
+assert.ok(cookie.includes("marginly_session="));
+assert.match(registration.headers.get("set-cookie"), /HttpOnly/i);
+assert.match(registration.headers.get("set-cookie"), /SameSite=lax/i);
 async function request(path, method = "GET", body, auth = true, extra = {}) {
   const res = await fetch(base + path, {
     method,
@@ -35,6 +42,26 @@ const draft = {
 };
 let id;
 try {
+  assert.equal(
+    (
+      await request(
+        "/api/auth/login",
+        "POST",
+        { email, password: "incorrect-password" },
+        false,
+      )
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await request("/api/posts", "POST", draft, false, {
+        "oai-authenticated-user-id": "forged",
+        "oai-authenticated-user-email": email,
+      })
+    ).status,
+    401,
+  );
   const list = await request("/api/posts");
   assert.equal(list.status, 200);
   assert.ok(list.data.posts.length >= 6);
@@ -124,5 +151,29 @@ try {
     assert.equal((await request(`/api/posts/${id}`, "DELETE")).status, 200);
     assert.equal((await request(`/api/posts/${id}`)).status, 404);
     console.log("PASS: deletion and test cleanup.");
+    await request("/api/auth/logout", "POST");
+    assert.equal(
+      (await request("/api/posts")).data.viewer,
+      null,
+      "Logged-out session must be revoked",
+    );
+    const login = await fetch(base + "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    assert.equal(login.status, 200);
+    cookie = login.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; ");
+    assert.ok(
+      (await request("/api/posts")).data.viewer,
+      "Password login must restore identity",
+    );
+    await request("/api/auth/logout", "POST");
+    console.log(
+      "PASS: password login, logout revocation and spoofed identity rejection.",
+    );
   }
 }

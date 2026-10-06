@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../../chatgpt-auth";
+import { getCurrentUser } from "../../../lib/auth";
 import {
   database,
   failure,
@@ -16,15 +16,13 @@ export async function GET(_: Request, { params }: Context) {
   try {
     await seed();
     const { id } = await params;
-    const user = await getChatGPTUser();
+    const user = await getCurrentUser();
     const post = await visiblePost(id, user?.userId ?? "");
-    const comments = await database()
-      .prepare(
-        "SELECT id,author,content,created_at AS createdAt FROM comments WHERE post_id=? ORDER BY created_at ASC",
-      )
-      .bind(id)
-      .all();
-    return json({ post, comments: comments.results });
+    const comments = await database().query(
+      'SELECT id,author,content,created_at AS "createdAt" FROM comments WHERE post_id=$1 ORDER BY created_at ASC',
+      [id],
+    );
+    return json({ post, comments: comments.rows });
   } catch (error) {
     return failure(error);
   }
@@ -37,11 +35,9 @@ export async function PUT(request: Request, { params }: Context) {
     if (post.owner !== user.userId)
       throw new HttpError(403, "You can only edit your own stories.");
     const input = postInput.parse(await readJson(request));
-    await database()
-      .prepare(
-        "UPDATE posts SET title=?,excerpt=?,content=?,category=?,image=?,status=?,updated_at=? WHERE id=? AND owner=?",
-      )
-      .bind(
+    await database().query(
+      "UPDATE posts SET title=$1,excerpt=$2,content=$3,category=$4,image=$5,status=$6,updated_at=$7 WHERE id=$8 AND owner=$9",
+      [
         input.title,
         input.excerpt,
         input.content,
@@ -51,8 +47,8 @@ export async function PUT(request: Request, { params }: Context) {
         new Date().toISOString(),
         id,
         user.userId,
-      )
-      .run();
+      ],
+    );
     return json({ id });
   } catch (error) {
     return failure(error);
@@ -65,14 +61,10 @@ export async function DELETE(request: Request, { params }: Context) {
     const post = await visiblePost(id, user.userId);
     if (post.owner !== user.userId)
       throw new HttpError(403, "You can only delete your own stories.");
-    const db = database();
-    await db.batch([
-      db.prepare("DELETE FROM comments WHERE post_id=?").bind(id),
-      db.prepare("DELETE FROM bookmarks WHERE post_id=?").bind(id),
-      db.prepare("DELETE FROM likes WHERE post_id=?").bind(id),
-      db
-        .prepare("DELETE FROM posts WHERE id=? AND owner=?")
-        .bind(id, user.userId),
+    // Foreign keys remove this story's comments, bookmarks and likes atomically.
+    await database().query("DELETE FROM posts WHERE id=$1 AND owner=$2", [
+      id,
+      user.userId,
     ]);
     return json({ deleted: true });
   } catch (error) {
@@ -93,34 +85,30 @@ export async function POST(request: Request, { params }: Context) {
         content: input.content,
         createdAt: new Date().toISOString(),
       };
-      await db
-        .prepare(
-          "INSERT INTO comments (id,post_id,user_id,author,content,created_at) VALUES (?,?,?,?,?,?)",
-        )
-        .bind(
+      await db.query(
+        "INSERT INTO comments (id,post_id,user_id,author,content,created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+        [
           comment.id,
           id,
           user.userId,
           comment.author,
           comment.content,
           comment.createdAt,
-        )
-        .run();
+        ],
+      );
       return json({ comment }, 201);
     }
     const table = input.action === "like" ? "likes" : "bookmarks";
     if (input.active)
-      await db
-        .prepare(
-          `INSERT OR IGNORE INTO ${table} (post_id,user_id) VALUES (?,?)`,
-        )
-        .bind(id, user.userId)
-        .run();
+      await db.query(
+        `INSERT INTO ${table} (post_id,user_id) VALUES ($1,$2) ON CONFLICT (post_id,user_id) DO NOTHING`,
+        [id, user.userId],
+      );
     else
-      await db
-        .prepare(`DELETE FROM ${table} WHERE post_id=? AND user_id=?`)
-        .bind(id, user.userId)
-        .run();
+      await db.query(`DELETE FROM ${table} WHERE post_id=$1 AND user_id=$2`, [
+        id,
+        user.userId,
+      ]);
     return json({ post: await visiblePost(id, user.userId) });
   } catch (error) {
     return failure(error);

@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getCurrentUser } from "../../lib/auth";
 import {
   database,
   failure,
@@ -15,15 +15,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await seed();
-    const user = await getChatGPTUser();
-    const result = await database()
-      .prepare(
-        `${postSelect} WHERE p.status='published' OR p.owner=?1 ORDER BY p.created_at DESC`,
-      )
-      .bind(user?.userId ?? "")
-      .all<Post>();
+    const user = await getCurrentUser();
+    const result = await database().query<Post>(
+      `${postSelect} WHERE p.status='published' OR p.owner=$1 ORDER BY p.created_at DESC`,
+      [user?.userId ?? ""],
+    );
     return json({
-      posts: result.results.map(serializePost),
+      posts: result.rows.map(serializePost),
       viewer: user
         ? {
             userId: user.userId,
@@ -41,11 +39,9 @@ export async function POST(request: Request) {
     const input = postInput.parse(await readJson(request));
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    await database()
-      .prepare(
-        "INSERT INTO posts (id,title,excerpt,content,category,author,owner,image,status,created_at,updated_at,featured) VALUES (?,?,?,?,?,?,?,?,?,?,?,0)",
-      )
-      .bind(
+    await database().query(
+      "INSERT INTO posts (id,title,excerpt,content,category,author,owner,image,status,created_at,updated_at,featured) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0)",
+      [
         id,
         input.title,
         input.excerpt,
@@ -57,8 +53,8 @@ export async function POST(request: Request) {
         input.status,
         now,
         now,
-      )
-      .run();
+      ],
+    );
     return json({ id }, 201);
   } catch (error) {
     return failure(error);

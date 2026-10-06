@@ -45,3 +45,9 @@ next-env.d.ts
 /outputs/
 /work/
 *.tsbuildinfo
+
+# Runtime database and private environment
+*.db
+*.db-*
+!.env.example
+/.data/

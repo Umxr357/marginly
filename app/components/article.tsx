@@ -22,7 +22,8 @@ export function Article({
   syncedPost?: Post;
   notify: (s: string) => void;
 }) {
-  const [post, setPost] = useState<Post | null>(null);
+  const [loadedPost, setLoadedPost] = useState<Post | null>(null);
+  const post = syncedPost ?? loadedPost;
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,13 +31,11 @@ export function Article({
   const [sending, setSending] = useState(false);
   const [commentError, setCommentError] = useState("");
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
       const result = await api<{ post: Post; comments: Comment[] }>(
         `/api/posts/${id}`,
       );
-      setPost(result.post);
+      setLoadedPost(result.post);
       setComments(result.comments);
       onUpdate(result.post);
     } catch (e) {
@@ -46,11 +45,15 @@ export function Article({
     }
   }, [id, onUpdate]);
   useEffect(() => {
+    // Initial API synchronization updates state only after the request settles.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
-  useEffect(() => {
-    if (syncedPost) setPost(syncedPost);
-  }, [syncedPost]);
+  function retry() {
+    setLoading(true);
+    setError("");
+    void load();
+  }
   useEffect(() => {
     if (post) document.title = `${post.title} — Marginly`;
   }, [post]);
@@ -85,7 +88,7 @@ export function Article({
             <a className="secondary" href="/">
               Explore stories
             </a>
-            <button className="primary" onClick={load}>
+            <button className="primary" onClick={retry}>
               Try again
             </button>
           </div>
@@ -149,7 +152,7 @@ export function Article({
           </h2>
           {viewer ? (
             <form onSubmit={comment}>
-              <label htmlFor="comment">What's your perspective?</label>
+              <label htmlFor="comment">What&apos;s your perspective?</label>
               <textarea
                 id="comment"
                 required
@@ -172,8 +175,7 @@ export function Article({
             <p>
               <a
                 className="text-link"
-                target="_top"
-                href={`/signin-with-chatgpt?return_to=${encodeURIComponent(`/post/${id}`)}`}
+                href={`/signin?return_to=${encodeURIComponent(`/post/${id}`)}`}
               >
                 Sign in
               </a>{" "}

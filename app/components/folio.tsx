@@ -12,6 +12,7 @@ import {
   Trash2,
   Heart,
   SlidersHorizontal,
+  LogOut,
 } from "lucide-react";
 import {
   categories,
@@ -44,12 +45,11 @@ export function Marginly({
   const [dark, setDark] = useState(false);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState<string[]>([]);
+  const [signingOut, setSigningOut] = useState(false);
   const busyIds = useRef(new Set<string>());
   const [deleting, setDeleting] = useState<Post | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const loadPosts = useCallback(async () => {
     try {
       const data = await api<{ posts: Post[]; viewer: Viewer }>("/api/posts");
       setPosts(data.posts);
@@ -61,13 +61,22 @@ export function Marginly({
     }
   }, []);
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    // Initial API synchronization updates state only after the request settles.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadPosts();
+  }, [loadPosts]);
+  function reload() {
+    setLoading(true);
+    setError("");
+    void loadPosts();
+  }
   useEffect(() => {
     try {
       const value =
         localStorage.getItem("marginly-theme") ??
         (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      // Read browser preferences after hydration so server/client markup agrees.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDark(value === "dark");
       document.documentElement.dataset.theme = value;
     } catch {
@@ -140,6 +149,17 @@ export function Marginly({
       setBusy([]);
     }
   }
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+      window.location.assign("/");
+    } catch (e) {
+      setToast((e as Error).message);
+      setSigningOut(false);
+    }
+  }
   const published = posts.filter((p) => p.status === "published");
   const source =
     view === "manage"
@@ -208,18 +228,28 @@ export function Marginly({
             Write a story
           </a>
           {viewer ? (
-            <span
-              className="profile-avatar"
-              title={`Signed in as ${viewer.displayName}`}
-            >
-              {viewer.displayName.charAt(0).toUpperCase()}
-            </span>
+            <>
+              <span
+                className="profile-avatar"
+                title={`Signed in as ${viewer.displayName}`}
+              >
+                {viewer.displayName.charAt(0).toUpperCase()}
+              </span>
+              <button
+                className="icon-button"
+                aria-label={signingOut ? "Signing out" : "Sign out"}
+                title="Sign out"
+                disabled={signingOut}
+                onClick={signOut}
+              >
+                <LogOut size={18} />
+              </button>
+            </>
           ) : (
             !loading && (
               <a
                 className="sign-in"
-                href={`/signin-with-chatgpt?return_to=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
-                target="_top"
+                href={`/signin?return_to=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
               >
                 Sign in
               </a>
@@ -364,7 +394,7 @@ export function Marginly({
                       aria-label={`Read ${featured.title}`}
                     >
                       <Cover post={featured} />
-                      <span className="feature-badge">EDITOR'S PICK</span>
+                      <span className="feature-badge">EDITOR&apos;S PICK</span>
                     </a>
                     <div className="feature-copy">
                       <span className="category-text">
@@ -624,8 +654,11 @@ export function Marginly({
   );
 }
 export function Cover({ post }: { post: Post }) {
+  // Changing the URL remounts its load state, including when returning to a URL.
+  return <CoverImage key={post.image} post={post} />;
+}
+function CoverImage({ post }: { post: Post }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [post.image]);
   return (
     <div className={`cover cover-${post.category.toLowerCase()}`}>
       {post.image && !failed ? (
@@ -697,7 +730,7 @@ export function Unavailable({
 }) {
   return (
     <div className="empty" role="alert">
-      <h2>We couldn't open the library</h2>
+      <h2>We couldn&apos;t open the library</h2>
       <p>{error}</p>
       <button className="primary" onClick={retry}>
         Try again
@@ -716,10 +749,9 @@ export function SignIn({
     <Empty title={title} description={description}>
       <a
         className="primary"
-        href={`/signin-with-chatgpt?return_to=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
-        target="_top"
+        href={`/signin?return_to=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
       >
-        Sign in with ChatGPT
+        Sign in
       </a>
     </Empty>
   );

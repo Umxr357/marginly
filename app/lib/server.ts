@@ -1,6 +1,8 @@
-import { env } from "cloudflare:workers";
+import { database } from "../../db";
+export { database } from "../../db";
 import { ZodError } from "zod";
-import { getChatGPTUser } from "../chatgpt-auth";
+import { getCurrentUser } from "./auth";
+import { isSameOrigin } from "./auth-input";
 import { seedPosts } from "./seed";
 import type { Post } from "./types";
 export class HttpError extends Error {
@@ -11,40 +13,29 @@ export class HttpError extends Error {
     super(message);
   }
 }
-export function database() {
-  if (!env.DB)
-    throw new HttpError(
-      503,
-      "Our story library is temporarily unavailable. Please try again.",
-    );
-  return env.DB;
-}
 let seedPromise: Promise<void> | undefined;
 export async function seed() {
   if (!seedPromise)
     seedPromise = (async () => {
       const db = database();
-      await db.batch(
-        seedPosts.map((p) =>
-          db
-            .prepare(
-              "INSERT INTO posts (id,title,excerpt,content,category,author,owner,image,status,created_at,updated_at,featured) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET image=excluded.image WHERE posts.owner='marginly-editorial'",
-            )
-            .bind(
-              p.id,
-              p.title,
-              p.excerpt,
-              p.content,
-              p.category,
-              p.author,
-              p.owner,
-              p.image,
-              p.status,
-              p.createdAt,
-              p.updatedAt,
-              p.featured,
-            ),
-        ),
+      await db.transaction(
+        seedPosts.map((p) => ({
+          sql: "INSERT INTO posts (id,title,excerpt,content,category,author,owner,image,status,created_at,updated_at,featured) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO UPDATE SET image=excluded.image WHERE posts.owner='marginly-editorial'",
+          values: [
+            p.id,
+            p.title,
+            p.excerpt,
+            p.content,
+            p.category,
+            p.author,
+            p.owner,
+            p.image,
+            p.status,
+            p.createdAt,
+            p.updatedAt,
+            p.featured,
+          ],
+        })),
       );
     })().catch((error) => {
       seedPromise = undefined;
@@ -52,21 +43,20 @@ export async function seed() {
     });
   await seedPromise;
 }
-export const postSelect = `SELECT p.id,p.title,p.excerpt,p.content,p.category,p.author,p.owner,p.image,p.status,p.created_at AS createdAt,p.updated_at AS updatedAt,p.featured,
- (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
- EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=?1) AS liked,
- EXISTS(SELECT 1 FROM bookmarks b WHERE b.post_id=p.id AND b.user_id=?1) AS bookmarked,
- (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS commentCount FROM posts p`;
+export const postSelect = `SELECT p.id,p.title,p.excerpt,p.content,p.category,p.author,p.owner,p.image,p.status,p.created_at AS "createdAt",p.updated_at AS "updatedAt",p.featured,
+ (SELECT COUNT(*)::INTEGER FROM likes l WHERE l.post_id=p.id) AS likes,
+ EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=$1) AS liked,
+ EXISTS(SELECT 1 FROM bookmarks b WHERE b.post_id=p.id AND b.user_id=$1) AS bookmarked,
+ (SELECT COUNT(*)::INTEGER FROM comments c WHERE c.post_id=p.id) AS "commentCount" FROM posts p`;
 export function serializePost(p: Post) {
   return { ...p, liked: Boolean(p.liked), bookmarked: Boolean(p.bookmarked) };
 }
 export async function visiblePost(id: string, userId: string) {
-  const p = await database()
-    .prepare(
-      `${postSelect} WHERE p.id=?2 AND (p.status='published' OR p.owner=?1)`,
-    )
-    .bind(userId, id)
-    .first<Post>();
+  const { rows } = await database().query<Post>(
+    `${postSelect} WHERE p.id=$2 AND (p.status='published' OR p.owner=$1)`,
+    [userId, id],
+  );
+  const p = rows[0];
   if (!p)
     throw new HttpError(
       404,
@@ -75,16 +65,12 @@ export async function visiblePost(id: string, userId: string) {
   return serializePost(p);
 }
 export async function writer(request: Request) {
-  const origin = request.headers.get("origin");
-  if (
-    request.headers.get("sec-fetch-site") === "cross-site" ||
-    (origin && origin !== new URL(request.url).origin)
-  )
+  if (!isSameOrigin(request))
     throw new HttpError(
       403,
       "This request couldn't be verified. Reload and try again.",
     );
-  const user = await getChatGPTUser();
+  const user = await getCurrentUser();
   if (!user)
     throw new HttpError(
       401,

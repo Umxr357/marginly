@@ -14,13 +14,15 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
-    files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
+    files: ["app/components/**/*.tsx"],
     rules: {
-      // These files are vendored verbatim from shadcn@4.17.0. Keep the
-      // registry source intact while applying the stricter rules to Site code.
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off",
+      // Document navigation preserves the editor's beforeunload protection
+      // and reloads cookie-backed identity after sign-in and sign-out.
+      "@next/next/no-html-link-for-pages": "off",
+      "@next/next/no-location-assign-relative-destination": "off",
+      // Authors supply arbitrary HTTPS covers, loaded directly by the browser
+      // with a custom error fallback instead of a server-side image proxy.
+      "@next/next/no-img-element": "off",
     },
   },
 ]);
